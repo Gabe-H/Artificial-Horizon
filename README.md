@@ -2,6 +2,9 @@
 
 Show flight controller attitude as an artificial horizon on an OLED screen.
 
+[![Video Demo](https://img.youtube.com/vi/2vXLzMDolMo/0.jpg)](https://www.youtube.com/watch?v=2vXLzMDolMo) <br>
+Demo Video
+
 ## Requirements
 - Arduino
 - Flight controller with available UART port
