@@ -35,42 +35,26 @@ AltSoftSerial ltmSerial(8, 9);
 // #define LOOPCOUNT                     // Loops per second number
 
 
-// Globals
-unsigned long timer = 0;
-unsigned long count = 0;
-int lastLoop = 0;
+#if defined(LOOPCOUNT)
+  unsigned long timer = 0;
+  unsigned long count = 0;
+  uint16_t lastLoop = 0;
+#endif
 
-const int8_t m[2] = {-1, 1};
+const double centerX = OLED_WIDTH / 2;                      // Center left-right
+const double centerY = OLED_HEIGHT * 0.625;               // Center bottom 3/4 of screen
 
-// Draws center nav triangle shape
-void drawTriangle() {
-  
-  double x1 = OLED_WIDTH / 2;                      // Center left-right
-  double y1 = (OLED_HEIGHT * 0.625);               // Center bottom 3/4 of screen
-  
-  
+#if defined(ATTITUDE_ARROW)
   // double outerX = cos(radians(-20));
   // double outerY = sin(radians(-20));
-  double outerX =  0.93969;                        // COSINE(-20)
-  double outerY = -0.34202;                        // SINE(-20)
+  const double outerX =  0.93969;                        // COSINE(-20)
+  const double outerY = -0.34202;                        // SINE(-20)
 
   // double lix = cos(radians(-30));
   // double liy = sin(radians(-30));
-  double innerX =  0.86603;                        // COSINE(-30)
-  double innerY = -0.5;                            // SINE(-30)
-
-  for (int i=0; i<2; i++) {
-    display.fillTriangle(
-      x1,
-      y1,
-      x1 - (m[i] * outerX * 20),
-      y1 - (outerY * 20),
-      x1 - (m[i] * innerX * 12),
-      y1 - (innerY * 12),
-      INVERSE
-    );
-  }
-}
+  const double innerX =  0.86603;                        // COSINE(-30)
+  const double innerY = -0.5;                            // SINE(-30)
+#endif
 
 // Draw screen elements. Check param signs.
 void drawScreen(int roll, int pitch, int heading) {
@@ -79,17 +63,14 @@ void drawScreen(int roll, int pitch, int heading) {
 
   #if defined(ARTIFICIAL_HORIZON)
 
-    double x1 = (OLED_WIDTH / 2);                    // Center left-right
-    double y1 = (OLED_HEIGHT * 0.625);               // Center bottom 3/4 of screen
+    const double paraX = cos(radians(-roll));                  // x & y vals parallel roll
+    const double paraY = sin(radians(-roll));
 
-    double paraX = cos(radians(-roll));                  // x & y vals parallel roll
-    double paraY = sin(radians(-roll));
+    const double perpX = -paraY;              // x & y vals perpendicular roll
+    const double perpY = paraX;
 
-    double perpX = -paraY;              // x & y vals perpendicular roll
-    double perpY = paraX;
-
-    double moveX = (x1 - (perpX * pitch * VERTICAL_SCALE));
-    double moveY = (y1 - (perpY * pitch * VERTICAL_SCALE));
+    const double moveX = (centerX - (perpX * pitch * VERTICAL_SCALE));
+    const double moveY = (centerY - (perpY * pitch * VERTICAL_SCALE));
 
     for (int i=-90; i<=90; i++) {
       int length = 0;
@@ -102,16 +83,8 @@ void drawScreen(int roll, int pitch, int heading) {
 
       if (length != 0) {
         display.writeLine(
-          moveX - (perpX * i * VERTICAL_SCALE),
-          moveY - (perpY * i * VERTICAL_SCALE),
           moveX - (perpX * i * VERTICAL_SCALE) - (paraX * length),
           moveY - (perpY * i * VERTICAL_SCALE) - (paraY * length),
-          WHITE
-        );
-
-        display.writeLine(
-          moveX - (perpX * i * VERTICAL_SCALE),
-          moveY - (perpY * i * VERTICAL_SCALE),
           moveX - (perpX * i * VERTICAL_SCALE) + (paraX * length),
           moveY - (perpY * i * VERTICAL_SCALE) + (paraY * length),
           WHITE
@@ -121,7 +94,25 @@ void drawScreen(int roll, int pitch, int heading) {
   #endif
 
   #if defined(ATTITUDE_ARROW)
-    drawTriangle();
+    display.fillTriangle(
+      centerX,
+      centerY,
+      centerX - (outerX * 20),
+      centerY - (outerY * 20),
+      centerX - (innerX * 12),
+      centerY - (innerY * 12),
+      INVERSE
+    );
+    
+    display.fillTriangle(
+      centerX,
+      centerY,
+      centerX + (outerX * 20),
+      centerY - (outerY * 20),
+      centerX + (innerX * 12),
+      centerY - (innerY * 12),
+      INVERSE
+    );
   #endif
 
   #if defined(HEADING_NUMBER)  
