@@ -2,7 +2,7 @@
 
 Show flight controller attitude as an artificial horizon on an OLED screen.
 
-[![Video Demo](https://img.youtube.com/vi/2vXLzMDolMo/0.jpg)](https://www.youtube.com/watch?v=2vXLzMDolMo "Artificial Horizon Demo Video") <br>
+[![Video Demo](https://img.youtube.com/vi/c99ORLmCuuQ/0.jpg)](https://www.youtube.com/watch?v=c99ORLmCuuQ "Artificial Horizon Demo Video") <br>
 Demo Video
 
 ## Requirements
