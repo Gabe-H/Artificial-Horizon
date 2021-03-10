@@ -15,6 +15,7 @@
 
 
 #define PROTOCOL_LIGHTTELEMETRY
+#define VERTICAL_SCALE 2
 #define TICK_SPACING  1
 
 Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire);
@@ -29,11 +30,14 @@ AltSoftSerial ltmSerial(8, 9);
 
 #define HEADING_INDICATOR                // Heading ticks
 #define HEADING_NUMBER                   // Number below heading ticks
+// #define PITCH_NUMBER                     // Pitch angle in top left
+// #define ROLL_NUMBER                      // Roll angle in top left
 // #define LOOPCOUNT                     // Loops per second number
 
 
 // Globals
 unsigned long timer = 0;
+unsigned long count = 0;
 int lastLoop = 0;
 
 const int8_t m[2] = {-1, 1};
@@ -63,7 +67,7 @@ void drawTriangle() {
       y1 - (outerY * 20),
       x1 - (m[i] * innerX * 12),
       y1 - (innerY * 12),
-      WHITE
+      INVERSE
     );
   }
 }
@@ -72,68 +76,76 @@ void drawTriangle() {
 void drawScreen(int roll, int pitch, int heading) {
   display.clearDisplay();                          // Clear screen
 
-  double x1 = (OLED_WIDTH / 2);                    // Center left-right
-  double y1 = (OLED_HEIGHT * 0.625);               // Center bottom 3/4 of screen
-  y1 += (pitch / 2);                               // Move up/down from pitch
 
-  double x2 = cos(radians(roll));                  // x & y vals parallel roll
-  double y2 = sin(radians(roll));
+  #if defined(ARTIFICIAL_HORIZON)
 
-  double upX = cos(radians(roll+90));              // x & y vals perpendicular roll
-  double upY = sin(radians(roll+90));
+    double x1 = (OLED_WIDTH / 2);                    // Center left-right
+    double y1 = (OLED_HEIGHT * 0.625);               // Center bottom 3/4 of screen
 
-  #ifdef ARTIFICIAL_HORIZON
-    display.writeLine(                             // Draw big horizon
-      x1 - (x2 * 255),
-      y1 - (y2 * 255),
-      x1 + (x2 * 255),
-      y1 + (y2 * 255),
-      WHITE
-    );
-  #endif
+    double paraX = cos(radians(-roll));                  // x & y vals parallel roll
+    double paraY = sin(radians(-roll));
 
-  #ifdef PITCH_INDICATOR 
-    for (int i=-10; i<11; i++) {                   // Line every 10 degrees of pitch
+    double perpX = -paraY;              // x & y vals perpendicular roll
+    double perpY = paraX;
 
-      int length = 1;                              // Normal - 5 length
-      if (i%2 == 0) length = 2;                    // Every 2 - 10 length
-      if (i%4 == 0) length = 3;                    // Every 4 - 15 length
-      if (i == 0) length = 0;                      // Don't draw horizon
+    double moveX = (x1 - (perpX * pitch * VERTICAL_SCALE));
+    double moveY = (y1 - (perpY * pitch * VERTICAL_SCALE));
 
-      for (int x=0; x<2; x++) {                    // Get -1 and 1 multipliers for
-        display.writeLine(                         // left and right sides of line
-          x1 - (upX * 5 * i),
-          y1 - (upY * 5 * i),
-          (x1 - (upX * 5 * i)) - (m[x] * x2 * 5 * length),
-          (y1 - (upY * 5 * i)) - (m[x] * y2 * 5 * length),
+    for (int i=-90; i<=90; i++) {
+      int length = 0;
+        if (i == 0) length = 255;
+      #if defined(PITCH_INDICATOR)
+        else if (i % 90 == 0) length = 48;
+        else if (i % 10 == 0) length = 22;
+        else if (i %  5 == 0) length = 10;
+      #endif
+
+      if (length != 0) {
+        display.writeLine(
+          moveX - (perpX * i * VERTICAL_SCALE),
+          moveY - (perpY * i * VERTICAL_SCALE),
+          moveX - (perpX * i * VERTICAL_SCALE) - (paraX * length),
+          moveY - (perpY * i * VERTICAL_SCALE) - (paraY * length),
+          WHITE
+        );
+
+        display.writeLine(
+          moveX - (perpX * i * VERTICAL_SCALE),
+          moveY - (perpY * i * VERTICAL_SCALE),
+          moveX - (perpX * i * VERTICAL_SCALE) + (paraX * length),
+          moveY - (perpY * i * VERTICAL_SCALE) + (paraY * length),
           WHITE
         );
       }
     }
   #endif
 
-  #ifdef ATTITUDE_ARROW
+  #if defined(ATTITUDE_ARROW)
     drawTriangle();
   #endif
 
-  #ifdef HEADING_NUMBER          
-    display.fillRect(                              // Black background behind ticks
-      0, 6, OLED_WIDTH, 10, BLACK                  // (stop horizon interfering)
-    );
-
+  #if defined(HEADING_NUMBER)  
     int16_t textX, textY;
     uint16_t w, h;
 
+    display.fillRect(                              // Black background behind ticks
+      0, 6,
+      OLED_WIDTH, 10,
+      BLACK                  // (stop horizon interfering)
+    );
+
     display.getTextBounds(                         // Calc width of new string
-      String(heading), OLED_WIDTH/2, 9,
-      &textX, &textY, &w, &h
+      String(heading),
+      OLED_WIDTH/2, 9,
+      &textX, &textY,
+      &w, &h
     );        
 
     display.setCursor(textX - w / 2, textY);       // Set text cursor so number will be centered
     display.print(heading);                        // Print the number
   #endif
 
-  #ifdef HEADING_INDICATOR                         // Draw ticks at top of display
+  #if defined(HEADING_INDICATOR)                         // Draw ticks at top of display
 
     display.fillRect(0, 0, OLED_WIDTH, 6, BLACK);
 
@@ -150,12 +162,26 @@ void drawScreen(int roll, int pitch, int heading) {
         display.drawFastVLine(i+yawOffset, 0, 5, WHITE);
       else if (i % (15 * TICK_SPACING) == 0)               // 15degs -> 4px
         display.drawFastVLine(i+yawOffset, 0, 4, WHITE);
-      else                                                 // else -> 1px
+      else if (i % (5 * TICK_SPACING) == 0)                // else -> 1px
         display.drawFastVLine(i+yawOffset, 0, 1, WHITE);
     } 
   #endif
+
+  #if defined(PITCH_NUMBER)
   
-  #ifdef LOOPCOUNT                                 // Print loops per second
+    display.setCursor(0, 9);
+    display.print(-pitch);
+  #endif
+
+  #if defined(ROLL_NUMBER)
+
+    #if defined(PITCH_NUMBER)
+      display.print(" ");
+    #endif
+    display.print(abs(roll));
+  #endif
+  
+  #if defined(LOOPCOUNT)                                 // Print loops per second
 
     display.setCursor(0, 0);
     display.print(lastLoop);
@@ -179,11 +205,10 @@ void loop() {
   // put your main code here, to run repeatedly:
   ltm_read();                                      // Read from LTM Telemetry
 
-                          // Send inverted axes to function (heading inverted later)
-  drawScreen(-uav_roll, -uav_pitch, uav_heading);  
+  drawScreen(uav_roll, uav_pitch, uav_heading);  
 
   
-  #ifdef LOOPCOUNT        // If defined, increase counter every loop, update label every second
+  #if defined(LOOPCOUNT)        // If defined, increase counter every loop, update label every second
 
     count++;
     if ((millis()-timer) > 1000) {
